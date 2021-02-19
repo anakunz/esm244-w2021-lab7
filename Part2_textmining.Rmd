@@ -36,7 +36,93 @@ hobbit_df <- hobbit_tidy %>%
     str_detect(text_full, pattern = "Chapter") ~ text_full, 
     TRUE ~ NA_character_
   )) %>% 
-  fill(chapter)
+  fill(chapter) %>% 
+  separate(col = chapter, into = c("ch", "no"), sep = " " ) %>% 
+  mutate(chapter = as.numeric(as.roman(no)))
 ```
 
-LEFT OF AT 22:31 continue!
+tokenized text format
+one token = single word
+
+```{r}
+hobbit_tokens <- hobbit_df %>% 
+  unnest_tokens(word, text_full) %>% 
+  dplyr::select(-hobbit_text)
+
+hobbit_wordcount <- hobbit_tokens %>% 
+  count(chapter, word)
+```
+
+remove stop words 
+
+```{r}
+hobbit_nonstop <- hobbit_tokens %>% 
+  anti_join(stop_words) %>% 
+  count(chapter, word) 
+   
+  
+  top_five <- hobbit_nonstop %>% 
+  group_by(chapter) %>%
+  arrange(-n) %>% 
+  slice(1:5)
+```
+
+```{r}
+ggplot(top_five, aes(x = word, y = n))+
+  geom_col(fill = "blue")+
+  facet_wrap(~chapter, scales = "free")+
+  coord_flip()
+```
+
+
+```{r}
+ch1_top100 <- hobbit_nonstop %>% 
+  filter(chapter == 1) %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+ch1_cloud <- ggplot(data = ch1_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n))+
+  scale_size_area(max_size = 6)
+
+ch1_cloud
+```
+
+## Sentiment analysis
+
+```{r}
+afinn_pos <- get_sentiments("afinn") %>% 
+  filter(value > 2)
+
+hobbit_afin <- hobbit_nonstop%>% 
+  inner_join(get_sentiments("afinn"))
+
+afinn_counts <- hobbit_afin %>% 
+  count(chapter, value)
+
+afinn_mean <- hobbit_afin %>%
+  group_by(chapter) %>% 
+  summarize(mean_afin = mean(value))
+
+ggplot(afinn_mean, aes(x = chapter, y = mean_afin))+
+  geom_col()+
+  coord_flip()
+  
+```
+
+## Nrc lexicon for bins of words
+
+```{r}
+nrc_hobbit <- hobbit_nonstop %>% 
+  inner_join(get_sentiments("nrc"))
+
+hobbit_nrc_count <- nrc_hobbit %>%  
+  count(chapter, sentiment)
+
+ggplot(hobbit_nrc_count, aes(x = sentiment, y = n))+
+  geom_col()+
+  facet_wrap(~chapter)+
+  coord_flip()
+```
+
+
